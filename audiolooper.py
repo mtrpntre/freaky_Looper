@@ -144,15 +144,17 @@ class AudioLooper:
         if status:
             print(f"Input stream status: {status}")
         with self.lock:
-            if self.loop_controls.is_recording and self.loop_controls.current_loop < len(self.loop_controls.loops):
+            if (self.loop_controls.is_recording and 
+                self.loop_controls.current_loop < len(self.loop_controls.loops)):
                 current_pos = self.loop_controls.loop_positions[self.loop_controls.current_loop]
-                if self.loop_controls.is_overdubbing:
-                    self.loop_controls.loops[self.loop_controls.current_loop][current_pos] = np.clip(
-                        self.loop_controls.loops[self.loop_controls.current_loop][current_pos] + indata[:, 0],
-                        -1.0, 1.0
-                    )
-                else:
-                    self.loop_controls.loops[self.loop_controls.current_loop][current_pos] = indata[:, 0]
+                if current_pos < self.loop_controls.loop_sizes[self.loop_controls.current_loop]:
+                    if self.loop_controls.is_overdubbing:
+                        self.loop_controls.loops[self.loop_controls.current_loop][current_pos] = np.clip(
+                            self.loop_controls.loops[self.loop_controls.current_loop][current_pos] + indata[:, 0],
+                            -1.0, 1.0
+                        )
+                    else:
+                        self.loop_controls.loops[self.loop_controls.current_loop][current_pos] = indata[:, 0]
 
   
 
