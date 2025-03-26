@@ -29,7 +29,7 @@ A feature-rich audio looper with live effects processing, built for musicians an
 
 ### Quick Start
 ```bash
-git clone https://github.com/your_username/freaky_Looper.git
+git clone https://github.com/mtrpntre/freaky_Looper.git
 cd freaky_Looper
 pip install -r requirements.txt
 python main.py
