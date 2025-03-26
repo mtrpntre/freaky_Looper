@@ -9,7 +9,7 @@ from components.loop_controls import LoopControls
 
 
 class AudioLooper:
-    def __init__(self, rate=44100, chunk=512, format='float32', initial_loop_lengths=[2.0, 4.0, 8.0]):
+    def __init__(self, rate=44100, chunk=1024, format='float32', initial_loop_lengths=[2.0, 4.0, 8.0]):
         self.rate = rate
         self.chunk = chunk
         self.format = format
@@ -230,22 +230,16 @@ class AudioLooper:
         output = np.zeros(self.chunk, dtype=self.format)
         
         with self.lock:
-            # First process live input (if recording)
+            # Process live input (if recording)
             if self.loop_controls.is_recording and self.loop_controls.current_loop_id is not None:
                 current_loop_id = self.loop_controls.current_loop_id
                 pos = self.loop_controls.loop_positions[current_loop_id]
                 audio_data = self.loop_controls.loops[current_loop_id][pos].copy()
                 
-                # Process effects (including cross-loop routing)
                 processed = self.process_effects(current_loop_id, audio_data)
-                
-                # Send to output for real-time monitoring
                 output += processed
 
-                if self.is_session_recording:
-                    self.recording_session.add_data(processed.reshape(-1, 1))
-                
-                # Still record to current loop
+                # Update loop buffer
                 if self.loop_controls.is_overdubbing:
                     self.loop_controls.loops[current_loop_id][pos] = np.clip(
                         self.loop_controls.loops[current_loop_id][pos] + processed,
@@ -256,9 +250,8 @@ class AudioLooper:
                 
                 self.loop_controls.loop_positions[current_loop_id] = (pos + 1) % self.loop_controls.loop_sizes[current_loop_id]
             
-            # Process all loops (including effect routing)
+            # Process all other loops
             for loop_id in self.loop_controls.loops:
-                # Skip if currently recording this loop (already processed)
                 if self.loop_controls.is_recording and loop_id == self.loop_controls.current_loop_id:
                     continue
                     
@@ -268,22 +261,20 @@ class AudioLooper:
                 # Skip muted/soloed loops
                 if ((self.loop_controls.muted_loops.get(loop_id, False) and 
                     not any(self.loop_controls.soloed_loops.values())) or
-                (any(self.loop_controls.soloed_loops.values()) and 
+                    (any(self.loop_controls.soloed_loops.values()) and 
                     not self.loop_controls.soloed_loops.get(loop_id, False))):
                     continue
                 
-                # Process effects
                 processed = self.process_effects(loop_id, audio_data)
                 
-                # Add to main output (unless it's an effect input being routed elsewhere)
                 if not self._is_effect_input_routed(loop_id):
                     output += processed
                 
-                if self.is_session_recording and not (self.loop_controls.is_recording and loop_id == self.loop_controls.current_loop_id):
-                    self.recording_session.add_data(processed.reshape(-1, 1))
-                
-                # Update loop position
                 self.loop_controls.loop_positions[loop_id] = (pos + 1) % self.loop_controls.loop_sizes[loop_id]
+            
+            # Record the final mixed output (ONCE per buffer)
+            if self.is_session_recording:
+                self.recording_session.add_data(output.copy())
         
         return np.clip(output, -1.0, 1.0)
 
